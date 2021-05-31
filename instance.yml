@@ -9,7 +9,7 @@
       region: "us-central1"
 
   tasks:
-   - name: create a disk
+   - name: create an disk
      gcp_compute_disk:
          name: 'disk-instance'
          size_gb: 50
