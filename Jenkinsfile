@@ -1,79 +1,134 @@
-try{
-    node{
-        def mavenHome
-        def mavenCMD
-        def docker
-        def dockerCMD
-        def tagName = "1.0"
+node {
+    try {
         
-        stage('Preparation'){
-            echo "Preparing the Jenkins environment with required tools..."
-            mavenHome = tool name: 'maven 3', type: 'maven'
-            mavenCMD = "${mavenHome}/bin/mvn"
-            docker = tool name: 'docker', type: 'org.jenkinsci.plugins.docker.commons.tools.DockerTool'
-            dockerCMD = "$docker/bin/docker"
+        stage('checkout'){
+            git 'https://github.com/losetty143/casestudy.git'
         }
-        
-        stage('git checkout'){
-            echo "Checking out the code from git repository..."
-            git 'https://www.github.com/shubhamkushwah123/bootcamp10.git'
-        }
+        currentBuild.result = 'SUCCESS'
+        emailext body: 'Your build has been successful on checkout', subject: 'Build Result', to: 'rajesh.losetty@gmail.com'
+    } catch (Exception err) {
+        currentBuild.result = 'FAILURE'
+        emailext body: 'Your build has been unsuccessful on checkout', subject: 'Build Result', to: 'rajesh.losetty@gmail.com'
+    }
+    echo "RESULT: ${currentBuild.result}"
+    try {
         
         stage('Build, Test and Package'){
-            echo "Building the addressbook application..."
-            sh "${mavenCMD} clean package"
+           echo "Building the addressbook application..."
+           sh "mvn clean package"
         }
+        
+        currentBuild.result = 'SUCCESS'
+        emailext body: 'Your build has been successful on packaging', subject: 'Build Result', to: 'rajesh.losetty@gmail.com'
+    } catch (Exception err) {
+        currentBuild.result = 'FAILURE'
+        emailext body: 'Your build has been unsuccessful on packging', subject: 'Build Result', to: 'rajesh.losetty@gmail.com'
+    }
+    echo "RESULT: ${currentBuild.result}"
+    try {
         
         stage('Sonar Scan'){
-            echo "Scanning application for vulnerabilities..."
-            //sh "${mavenCMD} sonar:sonar -Dsonar.host.url=http://xx.xxx.xx.xx:9000"
+           echo "Scanning application for vulnerabilities...."
+           sh "mvn sonar:sonar -Dsonar.host.url=http://35.232.107.113:9000/ -Dsonar.login=admin -Dsonar.password=Rajsasi@143"
         }
         
-        stage('Integration test'){
-            echo "Executing Regression Test Suits..."
-            // command to execute selenium test suits
-        }
+        currentBuild.result = 'SUCCESS'
+        emailext body: 'Your build has been successful on Sonar stage', subject: 'Build Result', to: 'rajesh.losetty@gmail.com'
+    } catch (Exception err) {
+        currentBuild.result = 'FAILURE'
+        emailext body: 'Your build has been unsuccessful on Sonar stage', subject: 'Build Result', to: 'rajesh.losetty@gmail.com'
+    }
+    echo "RESULT: ${currentBuild.result}"
+    try {
         
         stage('publish report'){
-            echo " Publishing HTML report.."
-            publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: '', reportFiles: 'index.html', reportName: 'HTML Report', reportTitles: ''])
+           echo "Publishing HTML report.."
+           publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: '/var/lib/jenkins/workspace/casestudy', reportFiles: 'index.html', reportName: 'HTML Report', reportTitles: ''])
+
         }
+        
+        currentBuild.result = 'SUCCESS'
+        emailext body: 'Your build has been successful on HTML Report', subject: 'Build Result', to: 'rajesh.losetty@gmail.com'
+    } catch (Exception err) {
+        currentBuild.result = 'FAILURE'
+        //emailext body: 'Your build has been unsuccessful on HTML Report', subject: 'Build Result', to: 'rajesh.losetty@gmail.com'
+    }
+    echo "RESULT: ${currentBuild.result}"
+    try {
         
         stage('Build Docker Image'){
-            echo "Building docker image for addressbook application ..."
-            sh "${dockerCMD} build -t shubhamkushwah123/addressbook:${tagName} ."
+           echo "Building docker image for addressbook application ..."
+          sh "docker build -t rlosetty/addressbook:1.0 ." 
+
         }
+        //echo "Im not going to fail"
+        currentBuild.result = 'SUCCESS'
+        emailext body: 'Your build has been successful on Docker image', subject: 'Build Result', to: 'rajesh.losetty@gmail.com'
+    } catch (Exception err) {
+        currentBuild.result = 'FAILURE'
+        emailext body: 'Your build has been unsuccessful on Docker Image', subject: 'Build Result', to: 'rajesh.losetty@gmail.com'
+    }
+    echo "RESULT: ${currentBuild.result}"
+    try {
         
-        stage("Push Docker Image to Docker Registry"){
-            echo "Pushing image to docker hub"
-            withCredentials([string(credentialsId: 'dockerPwd', variable: 'dockerHubPwd')]) {
-            sh "${dockerCMD} login -u shubhamkushwah123 -p ${dockerHubPwd}"
-            sh "${dockerCMD} push shubhamkushwah123/addressbook:${tagName}"
+        stage('Push Docker Image to Docker Registry'){
+           echo "Pushing image to docker hub"
+            withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                
+            sh "docker login -u ${USERNAME} -p ${PASSWORD}"
+            sh "docker push rlosetty/addressbook:1.0"
             }
+                     
         }
         
-        stage('Deploy Application'){
-            echo "Installing desired software.."
-            echo "Bring docker service up and running"
-            echo "Deploying addressbook application"
-            ansiblePlaybook credentialsId: 'ssh', disableHostKeyChecking: true, installation: 'ansible 2.9.22', inventory: '/etc/ansible/hosts', playbook: 'deploy-playbook.yml'
+        currentBuild.result = 'SUCCESS'
+        emailext body: 'Your build has been successful on Docker image Pushing', subject: 'Build Result', to: 'rajesh.losetty@gmail.com'
+    } catch (Exception err) {
+        currentBuild.result = 'FAILURE'
+        emailext body: 'Your build has been unsuccessful on Docker Image Pushing', subject: 'Build Result', to: 'rajesh.losetty@gmail.com'
+    }
+    echo "RESULT: ${currentBuild.result}"
+    try {
+        
+        stage('Deploy GCP instance'){
+         echo "Deploying GCP instance"
+         ansiblePlaybook installation: 'ansible-2.9.22', inventory: '/etc/ansible/hosts', playbook: '/var/lib/jenkins/workspace/instance.yml'  
         }
+        
+        currentBuild.result = 'SUCCESS'
+        emailext body: 'Your build has been successful on Deploying GCP instance', subject: 'Build Result', to: 'rajesh.losetty@gmail.com'
+    } catch (Exception err) {
+        currentBuild.result = 'FAILURE'
+        emailext body: 'Your build has been unsuccessful on Deploying GCP instance', subject: 'Build Result', to: 'rajesh.losetty@gmail.com'
+    }
+    echo "RESULT: ${currentBuild.result}"
+     try {
+        
+        stage('Deploying'){
+        echo "Deploying into VM which created using Ansible playbook"
+        deploy adapters: [tomcat7(credentialsId: 'TomcatCred', path: '', url: 'http://34.136.39.153:8080/')], contextPath: 'index', war: '**/*.war'
+       }
+        
+        currentBuild.result = 'SUCCESS'
+        emailext body: 'Your build has been successful on Deployment', subject: 'Build Result', to: 'rajesh.losetty@gmail.com'
+    } catch (Exception err) {
+        currentBuild.result = 'FAILURE'
+        emailext body: 'Your build has been unsuccessful on Deployment', subject: 'Build Result', to: 'rajesh.losetty@gmail.com'
+    }
+    echo "RESULT: ${currentBuild.result}"
+    try {
         
         stage('Clean up'){
-            echo "Cleaning up the workspace..."
-            cleanWs()
+        echo "Cleaning Work Space"
+        cleanWs()  
         }
+        
+        currentBuild.result = 'SUCCESS'
+        emailext body: 'Your build has been successful on Work Space', subject: 'Build Result', to: 'rajesh.losetty@gmail.com'
+    } catch (Exception err) {
+        currentBuild.result = 'FAILURE'
+        emailext body: 'Your build has been unsuccessful on Work Space', subject: 'Build Result', to: 'rajesh.losetty@gmail.com'
     }
-}
-catch(Exception err){
-    echo "Exception occured..."
-    currentBuild.result="FAILURE"
-    //send an failure email notification to the user.
-}
-finally {
-    (currentBuild.result!= "ABORTED") && node("master") {
-        echo "finally gets executed and end an email notification for every build"
-        //emailext body: 'Your build has been successful or unsuccessful', subject: 'Build Result', to: 'shubhamkushwah123@gmail.com'
-    }
-    
-}
+    echo "RESULT: ${currentBuild.result}"
+   
+ }
